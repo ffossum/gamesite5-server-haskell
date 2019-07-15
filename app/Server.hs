@@ -8,10 +8,12 @@ module Server where
 import GHC.Generics
 import Servant
 import Data.Aeson.Types
-import qualified Gamesite.Json.User as User
-import qualified Gamesite.Json.NewUser as NewUser
+import qualified Json.User as User
+import qualified Json.NewUser as NewUser
 import Servant.HTML.Lucid
 import Data.Text (Text)
+import qualified Html.MainPage as MainPage
+import Lucid (Html)
 
 exampleUser :: User.User
 exampleUser = User.User
@@ -28,7 +30,7 @@ type UserApi =
 
 type RestApi = "api" :> UserApi
 
-type HtmlApi = CaptureAll "segments" Text :> Get '[HTML] Text
+type HtmlApi = CaptureAll "segments" Text :> Get '[HTML] (Html ())
 
 type Api = RestApi :<|> HtmlApi
 
@@ -48,7 +50,7 @@ restServer :: Server RestApi
 restServer = (getUser  :<|> createUser)
 
 htmlServer :: Server HtmlApi
-htmlServer segments = pure "hello"
+htmlServer segments = pure MainPage.html
 
 server :: Server Api
 server = restServer :<|> htmlServer

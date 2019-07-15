@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module Gamesite.Json.User where
+module Json.User where
 
 import GHC.Generics
 import Data.Aeson.Types

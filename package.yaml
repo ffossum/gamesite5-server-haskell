@@ -28,6 +28,7 @@ dependencies:
   - mtl
   - servant-lucid
   - text
+  - lucid
 
 library:
   source-dirs: src

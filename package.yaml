@@ -29,6 +29,9 @@ dependencies:
   - servant-lucid
   - text
   - lucid
+  - cookie
+  - bytestring
+  - time
 
 library:
   source-dirs: src

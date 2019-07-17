@@ -8,15 +8,21 @@ module Server where
 import GHC.Generics
 import Servant
 import Data.Aeson.Types
+import Json.User (User(..))
 import qualified Json.User as User
+import Json.NewUser (NewUser(..))
 import qualified Json.NewUser as NewUser
+import Json.PublicUser (PublicUser)
+import qualified Json.PublicUser as PublicUser
 import Servant.HTML.Lucid
 import Data.Text (Text)
+import qualified Data.Text as Text
 import qualified Html.MainPage as MainPage
 import Lucid (Html)
+import qualified Web.Cookie as Cookie
 
-exampleUser :: User.User
-exampleUser = User.User
+exampleUser :: User
+exampleUser = User
   { User.id = 1
   , User.name = "John"
   , User.email = "john@test.test"
@@ -24,8 +30,8 @@ exampleUser = User.User
 
 type UserApi =
   "users" :>
-    ("me" :> Get '[JSON] User.User
-    :<|> ReqBody '[JSON] NewUser.NewUser :> PostCreated '[JSON] User.User
+    ("me" :> Get '[JSON] User
+    :<|> ReqBody '[JSON] NewUser :> PostCreated '[JSON] (WithCookie User)
     )
 
 type RestApi = "api" :> UserApi
@@ -34,20 +40,31 @@ type HtmlApi = CaptureAll "segments" Text :> Get '[HTML] (Html ())
 
 type Api = RestApi :<|> HtmlApi
 
+type WithCookie a = Headers '[Header "Set-Cookie" Cookie.SetCookie] a
 
-getUser :: Handler User.User
+getUser :: Handler User
 getUser = pure exampleUser
 
-createUser :: NewUser.NewUser -> Handler User.User
-createUser newUser =
-  pure User.User
-    { User.id = 2
-    , User.email = NewUser.email newUser
-    , User.name = NewUser.name newUser
+createCookie :: PublicUser -> Cookie.SetCookie
+createCookie user =
+  Cookie.defaultSetCookie
+    { Cookie.setCookieHttpOnly = True
+    , Cookie.setCookiePath = Just "/"
     }
 
+createUser :: NewUser -> Handler (WithCookie User)
+createUser newUser =
+  let
+    user = User
+      { User.id = 2
+      , User.email = NewUser.email newUser
+      , User.name = NewUser.name newUser
+      }
+  in
+    pure $ addHeader (createCookie (PublicUser.fromUser user)) user
+
 restServer :: Server RestApi
-restServer = (getUser  :<|> createUser)
+restServer = getUser  :<|> createUser
 
 htmlServer :: Server HtmlApi
 htmlServer segments = pure MainPage.html

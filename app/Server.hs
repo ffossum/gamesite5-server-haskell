@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -12,7 +13,7 @@ import Json.User (User(..))
 import qualified Json.User as User
 import Json.NewUser (NewUser(..))
 import qualified Json.NewUser as NewUser
-import Json.PublicUser (PublicUser)
+import Json.PublicUser (PublicUser(..))
 import qualified Json.PublicUser as PublicUser
 import Servant.HTML.Lucid
 import Data.Text (Text)
@@ -20,6 +21,9 @@ import qualified Data.Text as Text
 import qualified Html.MainPage as MainPage
 import Lucid (Html)
 import qualified Web.Cookie as Cookie
+import Network.Wai                      (Request, requestHeaders)
+import Servant.Server.Experimental.Auth (AuthHandler, AuthServerData, mkAuthHandler)
+
 
 exampleUser :: User
 exampleUser = User
@@ -30,9 +34,11 @@ exampleUser = User
 
 type UserApi =
   "users" :>
-    ("me" :> Get '[JSON] User
+    ("me" :> AuthProtect "cookie-auth" :> Get '[JSON] User
     :<|> ReqBody '[JSON] NewUser :> PostCreated '[JSON] (WithCookie User)
     )
+
+type instance AuthServerData (AuthProtect "cookie-auth") = PublicUser
 
 type RestApi = "api" :> UserApi
 
@@ -42,9 +48,6 @@ type Api = RestApi :<|> HtmlApi
 
 type WithCookie a = Headers '[Header "Set-Cookie" Cookie.SetCookie] a
 
-getUser :: Handler User
-getUser = pure exampleUser
-
 createCookie :: PublicUser -> Cookie.SetCookie
 createCookie user =
   Cookie.defaultSetCookie
@@ -52,19 +55,22 @@ createCookie user =
     , Cookie.setCookiePath = Just "/"
     }
 
-createUser :: NewUser -> Handler (WithCookie User)
-createUser newUser =
-  let
-    user = User
-      { User.id = 2
-      , User.email = NewUser.email newUser
-      , User.name = NewUser.name newUser
-      }
-  in
-    pure $ addHeader (createCookie (PublicUser.fromUser user)) user
-
 restServer :: Server RestApi
-restServer = getUser  :<|> createUser
+restServer = getUser :<|> createUser
+    where
+      getUser :: PublicUser -> Handler User
+      getUser publicUser = pure exampleUser
+
+      createUser :: NewUser -> Handler (WithCookie User)
+      createUser newUser =
+        let
+          user = User
+            { User.id = 2
+            , User.email = NewUser.email newUser
+            , User.name = NewUser.name newUser
+            }
+        in
+          pure $ addHeader (createCookie (PublicUser.fromUser user)) user
 
 htmlServer :: Server HtmlApi
 htmlServer segments = pure MainPage.html
@@ -76,5 +82,22 @@ apiProxy :: Proxy Api
 apiProxy = Proxy
 
 app :: Application
-app = serve apiProxy server
+app = serveWithContext apiProxy context server
+  where
+    context = authHandler :. EmptyContext
+
+authHandler :: AuthHandler Request PublicUser
+authHandler = mkAuthHandler handler
+  where
+    handler :: Request -> Handler PublicUser
+    handler req =
+      let
+        headers = requestHeaders req
+        token = do
+          cookies <- Cookie.parseCookies <$> lookup "cookie" headers
+          lookup "name" cookies
+      in
+        case token of
+          Just _ -> pure (PublicUser 1 "asdf")
+          Nothing -> throwError $ err401
 

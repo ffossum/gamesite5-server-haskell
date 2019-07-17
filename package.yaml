@@ -32,6 +32,7 @@ dependencies:
   - cookie
   - bytestring
   - time
+  - wai
 
 library:
   source-dirs: src

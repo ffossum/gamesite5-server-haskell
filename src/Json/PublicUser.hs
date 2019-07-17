@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module Json.PublicUser (PublicUser, fromUser) where
+module Json.PublicUser (PublicUser(..), fromUser) where
 
 import qualified Json.User as User
 import GHC.Generics

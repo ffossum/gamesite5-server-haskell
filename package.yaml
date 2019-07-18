@@ -33,6 +33,9 @@ dependencies:
   - bytestring
   - time
   - wai
+  - stm
+  - containers
+  - cryptonite
 
 library:
   source-dirs: src

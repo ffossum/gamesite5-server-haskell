@@ -9,12 +9,12 @@ module Server where
 import GHC.Generics
 import Servant
 import Data.Aeson.Types
-import Json.User (User(..))
-import qualified Json.User as User
+import Json.UserJson (UserJson(..))
+import qualified Json.UserJson as UserJson
 import Json.NewUser (NewUser(..))
 import qualified Json.NewUser as NewUser
-import Json.PublicUser (PublicUser(..))
-import qualified Json.PublicUser as PublicUser
+import Json.PublicUserJson (PublicUserJson(..))
+import qualified Json.PublicUserJson as PublicUserJson
 import Servant.HTML.Lucid
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -23,22 +23,26 @@ import Lucid (Html)
 import qualified Web.Cookie as Cookie
 import Network.Wai                      (Request, requestHeaders)
 import Servant.Server.Experimental.Auth (AuthHandler, AuthServerData, mkAuthHandler)
+import UserRepository (UserRepo, AddUser(..))
+import qualified UserRepository as UserRepo
+import Core.Password (hash, Password(..))
+import Core.User
+import Control.Monad.Trans (liftIO)
 
-
-exampleUser :: User
-exampleUser = User
-  { User.id = 1
-  , User.name = "John"
-  , User.email = "john@test.test"
+exampleUser :: UserJson
+exampleUser = UserJson
+  { UserJson.id = 1
+  , UserJson.name = "John"
+  , UserJson.email = "john@test.test"
   }
 
 type UserApi =
   "users" :>
-    ("me" :> AuthProtect "cookie-auth" :> Get '[JSON] User
-    :<|> ReqBody '[JSON] NewUser :> PostCreated '[JSON] (WithCookie User)
+    ("me" :> AuthProtect "cookie-auth" :> Get '[JSON] UserJson
+    :<|> ReqBody '[JSON] NewUser :> PostCreated '[JSON] (WithCookie UserJson)
     )
 
-type instance AuthServerData (AuthProtect "cookie-auth") = PublicUser
+type instance AuthServerData (AuthProtect "cookie-auth") = PublicUserJson
 
 type RestApi = "api" :> UserApi
 
@@ -48,48 +52,52 @@ type Api = RestApi :<|> HtmlApi
 
 type WithCookie a = Headers '[Header "Set-Cookie" Cookie.SetCookie] a
 
-createCookie :: PublicUser -> Cookie.SetCookie
+createCookie :: PublicUserJson -> Cookie.SetCookie
 createCookie user =
   Cookie.defaultSetCookie
     { Cookie.setCookieHttpOnly = True
     , Cookie.setCookiePath = Just "/"
     }
 
-restServer :: Server RestApi
-restServer = getUser :<|> createUser
+restServer :: UserRepo IO -> Server RestApi
+restServer userRepo = getUser :<|> createUser
     where
-      getUser :: PublicUser -> Handler User
-      getUser publicUser = pure exampleUser
+      getUser :: PublicUserJson -> Handler UserJson
+      getUser publicUser = do
+        let i = UserId (PublicUserJson.id publicUser)
+        maybeUser <- liftIO $ UserRepo.getUser userRepo i
+        case maybeUser of
+          Just user -> pure (UserJson.fromUser user)
+          Nothing -> throwError err404 { errBody = "user with id not found" }
 
-      createUser :: NewUser -> Handler (WithCookie User)
-      createUser newUser =
+      createUser :: NewUser -> Handler (WithCookie UserJson)
+      createUser newUser = do
         let
-          user = User
-            { User.id = 2
-            , User.email = NewUser.email newUser
-            , User.name = NewUser.name newUser
-            }
-        in
-          pure $ addHeader (createCookie (PublicUser.fromUser user)) user
+          hashedPassword = hash (Password (NewUser.password newUser))
+          user = AddUser (Username (NewUser.name newUser)) (Email (NewUser.email newUser)) hashedPassword
+        addResult <- liftIO $ UserRepo.addNewUser userRepo user
+        case addResult of
+          Left UserRepo.EmailAlreadyExists -> throwError err403 { errBody = "user with email already exists" }
+          Right addedUser -> pure $ addHeader (createCookie (PublicUserJson.fromUser addedUser)) (UserJson.fromUser addedUser)
 
 htmlServer :: Server HtmlApi
 htmlServer segments = pure MainPage.html
 
-server :: Server Api
-server = restServer :<|> htmlServer
+server :: UserRepo IO -> Server Api
+server userRepo = (restServer userRepo) :<|> htmlServer
 
 apiProxy :: Proxy Api
 apiProxy = Proxy
 
-app :: Application
-app = serveWithContext apiProxy context server
+app :: UserRepo IO -> Application
+app userRepo = serveWithContext apiProxy context (server userRepo)
   where
     context = authHandler :. EmptyContext
 
-authHandler :: AuthHandler Request PublicUser
+authHandler :: AuthHandler Request PublicUserJson
 authHandler = mkAuthHandler handler
   where
-    handler :: Request -> Handler PublicUser
+    handler :: Request -> Handler PublicUserJson
     handler req =
       let
         headers = requestHeaders req
@@ -98,6 +106,6 @@ authHandler = mkAuthHandler handler
           lookup "name" cookies
       in
         case token of
-          Just _ -> pure (PublicUser 1 "asdf")
+          Just _ -> pure (PublicUserJson 1 "asdf")
           Nothing -> throwError $ err401
 

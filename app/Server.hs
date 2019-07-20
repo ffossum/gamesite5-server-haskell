@@ -21,10 +21,10 @@ import qualified Data.Text as Text
 import qualified Html.MainPage as MainPage
 import Lucid (Html)
 import qualified Web.Cookie as Cookie
-import Network.Wai                      (Request, requestHeaders)
+import Network.Wai (Request, requestHeaders)
 import Servant.Server.Experimental.Auth (AuthHandler, AuthServerData, mkAuthHandler)
-import UserRepository (UserRepo, AddUser(..))
-import qualified UserRepository as UserRepo
+import UserService (UserService, AddUser(..))
+import qualified UserService as UserService
 import Core.Password (hash, Password(..))
 import Core.User
 import Control.Monad.Trans (liftIO)
@@ -59,13 +59,13 @@ createCookie user =
     , Cookie.setCookiePath = Just "/"
     }
 
-restServer :: UserRepo IO -> Server RestApi
-restServer userRepo = getUser :<|> createUser
+restServer :: UserService IO -> Server RestApi
+restServer userSvc = getUser :<|> createUser
     where
       getUser :: PublicUserJson -> Handler UserJson
       getUser publicUser = do
         let i = UserId (PublicUserJson.id publicUser)
-        maybeUser <- liftIO $ UserRepo.getUser userRepo i
+        maybeUser <- liftIO $ UserService.getUser userSvc i
         case maybeUser of
           Just user -> pure (UserJson.fromUser user)
           Nothing -> throwError err404 { errBody = "user with id not found" }
@@ -73,24 +73,23 @@ restServer userRepo = getUser :<|> createUser
       createUser :: NewUser -> Handler (WithCookie UserJson)
       createUser newUser = do
         let
-          hashedPassword = hash (Password (NewUser.password newUser))
-          user = AddUser (Username (NewUser.name newUser)) (Email (NewUser.email newUser)) hashedPassword
-        addResult <- liftIO $ UserRepo.addNewUser userRepo user
+          user = AddUser (Username (NewUser.name newUser)) (Email (NewUser.email newUser)) (Password (NewUser.password newUser))
+        addResult <- liftIO $ UserService.addNewUser userSvc user
         case addResult of
-          Left UserRepo.EmailAlreadyExists -> throwError err403 { errBody = "user with email already exists" }
+          Left UserService.EmailAlreadyExists -> throwError err403 { errBody = "user with email already exists" }
           Right addedUser -> pure $ addHeader (createCookie (PublicUserJson.fromUser addedUser)) (UserJson.fromUser addedUser)
 
 htmlServer :: Server HtmlApi
 htmlServer segments = pure MainPage.html
 
-server :: UserRepo IO -> Server Api
-server userRepo = (restServer userRepo) :<|> htmlServer
+server :: UserService IO -> Server Api
+server userSvc = (restServer userSvc) :<|> htmlServer
 
 apiProxy :: Proxy Api
 apiProxy = Proxy
 
-app :: UserRepo IO -> Application
-app userRepo = serveWithContext apiProxy context (server userRepo)
+app :: UserService IO -> Application
+app userSvc = serveWithContext apiProxy context (server userSvc)
   where
     context = authHandler :. EmptyContext
 

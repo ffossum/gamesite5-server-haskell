@@ -38,6 +38,7 @@ dependencies:
   - websockets
   - wai-websockets
   - attoparsec
+  - http-types
 
 library:
   source-dirs: src

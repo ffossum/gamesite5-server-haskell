@@ -39,21 +39,23 @@ import qualified AuthCookie
 
 type UserApi =
   "users" :>
-    ("me" :> AuthProtect "cookie-required" :> Get '[JSON] UserJson
+    ( "me" :> AuthProtect "cookie-required" :> Get '[JSON] UserJson
     )
   :<|> "register" :> ReqBody '[JSON] NewUser :> PostCreated '[JSON] (WithCookie UserJson)
   :<|> "login" :> ReqBody '[JSON] LoginJson :> PostAccepted '[JSON] (WithCookie UserJson)
   :<|> "logout" :> GetNoContent '[JSON] (WithCookie NoContent)
-  :<|> "ws" :> AuthProtect "cookie-optional" :> Raw
+
 
 type instance AuthServerData (AuthProtect "cookie-required") = UserId
 type instance AuthServerData (AuthProtect "cookie-optional") = Maybe UserId
 
 type RestApi = "api" :> UserApi
 
+type WebsocketApi = "ws" :> Raw
+
 type HtmlApi = CaptureAll "segments" Text :> Get '[HTML] (Html ())
 
-type Api = RestApi :<|> HtmlApi
+type Api = RestApi :<|> WebsocketApi :<|> HtmlApi
 
 type WithCookie a = Headers '[Header "Set-Cookie" Cookie.SetCookie] a
 
@@ -77,7 +79,7 @@ createExpiredCookie = baseCookie
 
 restServer :: UserService IO -> Server RestApi
 restServer userSvc =
-  meEndpoint :<|> registerEndpoint :<|> loginEndpoint :<|> logoutEndpoint :<|> wsEndpoint
+  meEndpoint :<|> registerEndpoint :<|> loginEndpoint :<|> logoutEndpoint
     where
       meEndpoint :: UserId -> Handler UserJson
       meEndpoint userId = do
@@ -111,21 +113,20 @@ restServer userSvc =
       logoutEndpoint :: Handler (WithCookie NoContent)
       logoutEndpoint = pure $ addHeader createExpiredCookie NoContent
 
-      wsEndpoint :: Maybe UserId -> Tagged Handler Application
-      wsEndpoint = undefined -- TODO
-
+wsServer :: Application -> Server WebsocketApi
+wsServer wsApp = pure wsApp
 
 htmlServer :: Server HtmlApi
 htmlServer segments = pure MainPage.html
 
-server :: UserService IO -> Server Api
-server userSvc = (restServer userSvc) :<|> htmlServer
+server :: UserService IO -> Application ->  Server Api
+server userSvc wsApp = (restServer userSvc) :<|> (wsServer wsApp) :<|> htmlServer
 
 apiProxy :: Proxy Api
 apiProxy = Proxy
 
-app :: UserService IO -> Application
-app userSvc = serveWithContext apiProxy context (server userSvc)
+app :: UserService IO -> Application -> Application
+app userSvc wsApp = serveWithContext apiProxy context (server userSvc wsApp)
   where
     context = authRequiredHandler :. authOptionalHandler :. EmptyContext
 
@@ -134,9 +135,9 @@ authRequiredHandler = mkAuthHandler handler
   where
     handler :: Request -> Handler UserId
     handler req =
-        case AuthCookie.userId req of
+        case AuthCookie.userId (requestHeaders req) of
           Just userId -> pure userId
           Nothing -> throwError $ err401
 
 authOptionalHandler :: AuthHandler Request (Maybe UserId)
-authOptionalHandler = mkAuthHandler (pure . AuthCookie.userId)
+authOptionalHandler = mkAuthHandler (pure . AuthCookie.userId . requestHeaders)

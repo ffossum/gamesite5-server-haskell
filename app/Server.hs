@@ -43,6 +43,7 @@ type UserApi =
   :<|> "register" :> ReqBody '[JSON] NewUser :> PostCreated '[JSON] (WithCookie UserJson)
   :<|> "login" :> ReqBody '[JSON] LoginJson :> PostAccepted '[JSON] (WithCookie UserJson)
   :<|> "logout" :> GetNoContent '[JSON] (WithCookie NoContent)
+  :<|> "ws" :> AuthProtect "cookie-optional" :> Raw
 
 type instance AuthServerData (AuthProtect "cookie-required") = UserId
 type instance AuthServerData (AuthProtect "cookie-optional") = Maybe UserId
@@ -74,7 +75,8 @@ createExpiredCookie = baseCookie
   }
 
 restServer :: UserService IO -> Server RestApi
-restServer userSvc = meEndpoint :<|> registerEndpoint :<|> loginEndpoint :<|> logoutEndpoint
+restServer userSvc =
+  meEndpoint :<|> registerEndpoint :<|> loginEndpoint :<|> logoutEndpoint :<|> wsEndpoint
     where
       meEndpoint :: UserId -> Handler UserJson
       meEndpoint userId = do
@@ -108,6 +110,10 @@ restServer userSvc = meEndpoint :<|> registerEndpoint :<|> loginEndpoint :<|> lo
       logoutEndpoint :: Handler (WithCookie NoContent)
       logoutEndpoint = pure $ addHeader createExpiredCookie NoContent
 
+      wsEndpoint :: Maybe UserId -> Tagged Handler Application
+      wsEndpoint = undefined -- TODO
+
+
 htmlServer :: Server HtmlApi
 htmlServer segments = pure MainPage.html
 
@@ -120,7 +126,7 @@ apiProxy = Proxy
 app :: UserService IO -> Application
 app userSvc = serveWithContext apiProxy context (server userSvc)
   where
-    context = authRequiredHandler :. EmptyContext
+    context = authRequiredHandler :. authOptionalHandler :. EmptyContext
 
 authRequiredHandler :: AuthHandler Request UserId
 authRequiredHandler = mkAuthHandler handler
@@ -137,3 +143,18 @@ authRequiredHandler = mkAuthHandler handler
         case maybeUserId of
           Just userId -> pure userId
           Nothing -> throwError $ err401
+
+
+authOptionalHandler :: AuthHandler Request (Maybe UserId)
+authOptionalHandler = mkAuthHandler handler
+  where
+    handler :: Request -> Handler (Maybe UserId)
+    handler req =
+      let
+        headers = requestHeaders req
+        maybeUserId = do
+          cookies <- Cookie.parseCookies <$> lookup "cookie" headers
+          cookieValue <- lookup "name" cookies
+          UserId <$> utf8IntMaybe cookieValue
+      in
+        pure maybeUserId

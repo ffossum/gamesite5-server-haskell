@@ -35,6 +35,7 @@ import Control.Monad.Trans (liftIO)
 import Data.Time (UTCTime(..), secondsToDiffTime)
 import Data.Time.Calendar (fromGregorian)
 import Parser.ByteString.Int (utf8IntMaybe)
+import qualified AuthCookie
 
 type UserApi =
   "users" :>
@@ -133,28 +134,9 @@ authRequiredHandler = mkAuthHandler handler
   where
     handler :: Request -> Handler UserId
     handler req =
-      let
-        headers = requestHeaders req
-        maybeUserId = do
-          cookies <- Cookie.parseCookies <$> lookup "cookie" headers
-          cookieValue <- lookup "name" cookies
-          UserId <$> utf8IntMaybe cookieValue
-      in
-        case maybeUserId of
+        case AuthCookie.userId req of
           Just userId -> pure userId
           Nothing -> throwError $ err401
 
-
 authOptionalHandler :: AuthHandler Request (Maybe UserId)
-authOptionalHandler = mkAuthHandler handler
-  where
-    handler :: Request -> Handler (Maybe UserId)
-    handler req =
-      let
-        headers = requestHeaders req
-        maybeUserId = do
-          cookies <- Cookie.parseCookies <$> lookup "cookie" headers
-          cookieValue <- lookup "name" cookies
-          UserId <$> utf8IntMaybe cookieValue
-      in
-        pure maybeUserId
+authOptionalHandler = mkAuthHandler (pure . AuthCookie.userId)

@@ -34,16 +34,18 @@ import qualified Core.User as User
 import Control.Monad.Trans (liftIO)
 import Data.Time (UTCTime(..), secondsToDiffTime)
 import Data.Time.Calendar (fromGregorian)
+import Parser.ByteString.Int (utf8IntMaybe)
 
 type UserApi =
   "users" :>
-    ("me" :> AuthProtect "cookie-auth" :> Get '[JSON] UserJson
+    ("me" :> AuthProtect "cookie-required" :> Get '[JSON] UserJson
     )
   :<|> "register" :> ReqBody '[JSON] NewUser :> PostCreated '[JSON] (WithCookie UserJson)
   :<|> "login" :> ReqBody '[JSON] LoginJson :> PostAccepted '[JSON] (WithCookie UserJson)
   :<|> "logout" :> GetNoContent '[JSON] (WithCookie NoContent)
 
-type instance AuthServerData (AuthProtect "cookie-auth") = UserId
+type instance AuthServerData (AuthProtect "cookie-required") = UserId
+type instance AuthServerData (AuthProtect "cookie-optional") = Maybe UserId
 
 type RestApi = "api" :> UserApi
 
@@ -118,20 +120,20 @@ apiProxy = Proxy
 app :: UserService IO -> Application
 app userSvc = serveWithContext apiProxy context (server userSvc)
   where
-    context = authHandler :. EmptyContext
+    context = authRequiredHandler :. EmptyContext
 
-authHandler :: AuthHandler Request UserId
-authHandler = mkAuthHandler handler
+authRequiredHandler :: AuthHandler Request UserId
+authRequiredHandler = mkAuthHandler handler
   where
     handler :: Request -> Handler UserId
     handler req =
       let
         headers = requestHeaders req
-        token = do
+        maybeUserId = do
           cookies <- Cookie.parseCookies <$> lookup "cookie" headers
-          lookup "name" cookies
+          cookieValue <- lookup "name" cookies
+          UserId <$> utf8IntMaybe cookieValue
       in
-        case token of
-          Just _ -> pure (UserId 1)
+        case maybeUserId of
+          Just userId -> pure userId
           Nothing -> throwError $ err401
-

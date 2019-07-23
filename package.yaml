@@ -24,7 +24,6 @@ dependencies:
   - servant-server
   - aeson
   - warp
-  - wai-cors
   - mtl
   - servant-lucid
   - text
@@ -36,6 +35,9 @@ dependencies:
   - stm
   - containers
   - cryptonite
+  - websockets
+  - wai-websockets
+  - attoparsec
 
 library:
   source-dirs: src

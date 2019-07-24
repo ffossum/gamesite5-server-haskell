@@ -12,7 +12,7 @@ import Control.Monad (forever, join)
 import Data.Text (Text)
 import Control.Concurrent.STM
 import UserService
-import WebSocket.Event (loginSuccessEvent)
+import WebSocket.Event (loginEvent)
 import Data.Aeson (encode)
 
 fallbackApp :: Application
@@ -24,9 +24,7 @@ wsServerApp userSvc pendingConn = do
   maybeUser <- join <$> traverse (UserService.getUser userSvc) maybeUserId
   conn <- WS.acceptRequest pendingConn
 
-  case maybeUser of
-    Just user -> WS.sendTextData conn $ encode (loginSuccessEvent user)
-    Nothing -> pure ()
+  WS.sendTextData conn $ encode (loginEvent maybeUser)
 
   WS.forkPingThread conn 30
 

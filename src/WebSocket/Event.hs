@@ -8,10 +8,10 @@ import Data.Aeson
 import Json.UserJson (UserJson)
 import qualified Json.UserJson as UserJson
 
-data EventJson = LoginSuccess UserJson
+data EventJson = LoginEvent (Maybe UserJson)
 
 instance ToJSON EventJson where
-  toJSON (LoginSuccess userJson) = toJSON [toJSON "login_success", toJSON userJson]
+  toJSON (LoginEvent maybeUser) = toJSON [toJSON "login", toJSON maybeUser]
 
-loginSuccessEvent :: User -> EventJson
-loginSuccessEvent = LoginSuccess . UserJson.fromUser
+loginEvent :: (Maybe User) -> EventJson
+loginEvent = LoginEvent . fmap UserJson.fromUser

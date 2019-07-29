@@ -21,9 +21,9 @@ data UserService m = UserService
   }
 
 mkInMemoryUserService :: CryptoService -> IO (UserService IO)
-mkInMemoryUserService cryptoSvc = atomically $ do
-    idCounterVar <- newTVar (0 :: Int)
-    usersVar <- newTVar ([] :: [User])
+mkInMemoryUserService cryptoSvc = do
+    idCounterVar <- newTVarIO (0 :: Int)
+    usersVar <- newTVarIO ([] :: [User])
 
     let
       _getUser :: UserId -> IO (Maybe User)

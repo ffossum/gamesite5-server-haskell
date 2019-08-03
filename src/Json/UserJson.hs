@@ -2,16 +2,18 @@
 
 module Json.UserJson where
 
-import GHC.Generics
+import Core.User
 import Data.Aeson.Types
 import Data.Text (Text)
-import Core.User
+import GHC.Generics
 
-data UserJson = UserJson
-  { id :: Int
-  , name :: Text
-  , email :: Text
-  } deriving (Eq, Show, Generic)
+data UserJson
+  = UserJson
+      { id :: Int
+      , name :: Text
+      , email :: Text
+      }
+  deriving (Eq, Show, Generic)
 
 instance ToJSON UserJson
 

@@ -2,13 +2,15 @@
 
 module Json.LoginJson where
 
-import GHC.Generics
 import Data.Aeson.Types
 import Data.Text (Text)
+import GHC.Generics
 
-data LoginJson = LoginJson
-  { email :: Text
-  , password :: Text
-  } deriving (Eq, Show, Generic)
+data LoginJson
+  = LoginJson
+      { email :: Text
+      , password :: Text
+      }
+  deriving (Eq, Show, Generic)
 
 instance FromJSON LoginJson

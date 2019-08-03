@@ -1,17 +1,23 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module Json.PublicUserJson (PublicUserJson(..), fromUser) where
+module Json.PublicUserJson
+  ( PublicUserJson (..)
+  , fromUser
+  )
+where
 
 import Core.User (User)
 import qualified Core.User as User
-import GHC.Generics
 import Data.Aeson.Types
 import Data.Text (Text)
+import GHC.Generics
 
-data PublicUserJson = PublicUserJson
-  { id :: Int
-  , name :: Text
-  } deriving (Eq, Show, Generic)
+data PublicUserJson
+  = PublicUserJson
+      { id :: Int
+      , name :: Text
+      }
+  deriving (Eq, Show, Generic)
 
 instance ToJSON PublicUserJson
 

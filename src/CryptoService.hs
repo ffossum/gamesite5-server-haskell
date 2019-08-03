@@ -1,12 +1,13 @@
 module CryptoService where
 
-import Core.Password (hash, Password(..), PasswordHash(..))
+import Core.Password (Password (..), PasswordHash (..), hash)
 import Core.User (Email)
 import qualified Crypto.KDF.BCrypt as BCrypt
 
-data CryptoService = CryptoService
-  { hashPassword :: Password -> PasswordHash
-  }
+data CryptoService
+  = CryptoService
+      { hashPassword :: Password -> PasswordHash
+      }
 
 validatePassword :: CryptoService -> Password -> PasswordHash -> Bool
 validatePassword authService password passwordHash =

@@ -2,10 +2,10 @@
 
 module AuthCookie where
 
-import qualified Web.Cookie as Cookie
-import Core.User (UserId(..))
-import Parser.ByteString.Int (utf8IntMaybe)
+import Core.User (UserId (..))
 import Network.HTTP.Types.Header (RequestHeaders)
+import Parser.ByteString.Int (utf8IntMaybe)
+import qualified Web.Cookie as Cookie
 
 userId :: RequestHeaders -> Maybe (UserId)
 userId headers = do

@@ -1,10 +1,9 @@
 module Parser.ByteString.Int where
 
-
 import Data.Attoparsec.Text
+import Data.Bifunctor (first)
 import Data.ByteString (ByteString)
 import Data.Text.Encoding (decodeUtf8')
-import Data.Bifunctor (first)
 
 utf8Int :: Integral a => ByteString -> Either String a
 utf8Int bs = do
@@ -17,4 +16,3 @@ utf8IntMaybe = eitherToMaybe . utf8Int
 eitherToMaybe :: Either e a -> Maybe a
 eitherToMaybe (Left _) = Nothing
 eitherToMaybe (Right a) = Just a
-

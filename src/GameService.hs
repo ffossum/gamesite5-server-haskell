@@ -40,6 +40,7 @@ mkInMemoryGameService = do
       let game = Game
             { gameId = gid
             , gameHost = host
+            , gamePlayers = []
             }
       modifyTVar' gamesVar (game:)
       pure game

@@ -23,9 +23,15 @@ gameHostAndPlayers game = gameHost game : gamePlayers game
 
 type Host = UserId
 
+data JoinGameError = JoinGameNotFound | AlreadyJoined
+
+data LeaveGameError = LeaveGameNotFound | NotInGame
+
 data GameService m
   = GameService
       { createGame :: Host -> m Game
+      , joinGame :: UserId -> GameId -> m (Either JoinGameError Game)
+      , leaveGame :: UserId -> GameId -> m (Either LeaveGameError Game)
       , gameById :: GameId -> m (Maybe Game)
       , gamesByHost :: UserId -> m [Game]
       , gamesByUser :: UserId -> m [Game]
@@ -47,6 +53,10 @@ mkInMemoryGameService = do
                 }
           modifyTVar' gamesVar (game :)
           pure game
+      _joinGame :: UserId -> GameId -> m (Either JoinGameError Game)
+      _joinGame = undefined
+      _leaveGame :: UserId -> GameId -> m (Either LeaveGameError Game)
+      _leaveGame = undefined
       _gameById :: GameId -> IO (Maybe Game)
       _gameById gid =
         find (\game -> gameId game == gid) <$> readTVarIO gamesVar
@@ -56,4 +66,4 @@ mkInMemoryGameService = do
       _gamesByUser :: UserId -> IO [Game]
       _gamesByUser usrId =
         filter (\game -> usrId `elem` gameHostAndPlayers game) <$> readTVarIO gamesVar
-   in pure $ GameService _createGame _gameById _gamesByHost _gamesByUser
+   in pure $ GameService _createGame _joinGame _leaveGame _gameById _gamesByHost _gamesByUser

@@ -19,24 +19,24 @@ port = 8080
 
 main :: IO ()
 main = do
-  redisConnection <-
+  redisConn <-
     Redis.checkedConnect
       Redis.defaultConnectInfo
         { Redis.connectHost = "172.17.0.2"
         } <*
       putStrLn "Connected to redis"
-  pubSubController <- Redis.newPubSubController [] []
+  pubSubCtrl <- Redis.newPubSubController [] []
   let cryptoSvc = mkFakeCryptoService
   userSvc <- mkInMemoryUserService cryptoSvc
-  wsApp <- mkWebsocketApp userSvc
+  wsApp <- mkWebsocketApp userSvc redisConn pubSubCtrl
   putStrLn $ "warp " <> warpVersion
   putStrLn $ "Starting server listening on port " <> (show port)
   race_
     (run port (app userSvc wsApp))
     ( forever $
       Redis.pubSubForever
-        redisConnection
-        pubSubController
+        redisConn
+        pubSubCtrl
         (putStrLn "Redis pubsub active") `catch`
       ( \(err :: SomeException) ->
         putStrLn ("Redis pubsub error: " <> show err) *>

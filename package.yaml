@@ -39,6 +39,7 @@ dependencies:
   - wai-websockets
   - attoparsec
   - http-types
+  - hedis
 
 library:
   source-dirs: src
